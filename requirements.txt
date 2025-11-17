@@ -4,3 +4,4 @@ numpy==1.26.4
 Pillow==10.1.0
 gunicorn==22.0.0
 opencv-python==4.10.0.84
+setuptools==70.3.0  # Compatible with Python 3.12; use latest stable
