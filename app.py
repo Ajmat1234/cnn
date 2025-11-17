@@ -6,18 +6,24 @@ import os
 from tempfile import NamedTemporaryFile
 import logging
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
+# Set up detailed logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
-# Initialize OCR with Hindi support
-try:
-    app.logger.info("Initializing PaddleOCR...")
-    ocr = PaddleOCR(use_angle_cls=True, lang='hi', use_gpu=False, show_log=False)
-    app.logger.info("PaddleOCR initialized successfully.")
-except Exception as init_err:
-    app.logger.error(f"PaddleOCR init failed: {init_err}")
-    ocr = None  # Will handle in predict
+# Global OCR instance
+ocr = None
+
+@app.before_first_request
+def initialize_ocr():
+    global ocr
+    try:
+        logger.info("Starting PaddleOCR initialization...")
+        ocr = PaddleOCR(use_angle_cls=True, lang='hi', use_gpu=False, show_log=False)
+        logger.info("PaddleOCR initialized successfully.")
+    except Exception as init_err:
+        logger.error(f"PaddleOCR initialization failed: {str(init_err)}", exc_info=True)
+        ocr = None
 
 @app.route('/')
 def index():
@@ -25,73 +31,86 @@ def index():
 
 @app.route('/predict', methods=['POST'])
 def predict():
+    global ocr
     if ocr is None:
-        return jsonify({'error': 'OCR not initialized. Please restart the app.'}), 500
+        logger.error("OCR not initialized - returning error")
+        return jsonify({'error': 'OCR engine not ready. Please wait a moment and try again.'}), 503
     
     if 'file' not in request.files:
+        logger.warning("No file in request")
         return jsonify({'error': 'No file uploaded'}), 400
     
     file = request.files['file']
     if file.filename == '':
+        logger.warning("Empty filename")
         return jsonify({'error': 'No file selected'}), 400
     
+    temp_path = None
     try:
-        app.logger.info(f"Processing file: {file.filename}")
+        logger.info(f"Starting prediction for file: {file.filename} (size: {len(file.read())} bytes)")
+        file.seek(0)  # Reset file pointer after reading size
         
-        # Read image bytes
+        # Load image
+        logger.info("Loading image from bytes...")
         image_bytes = file.read()
         if not image_bytes:
-            return jsonify({'error': 'Empty file uploaded'}), 400
+            logger.error("Empty image bytes")
+            return jsonify({'error': 'Invalid empty image'}), 400
         
-        app.logger.info("Image loaded successfully.")
         image = Image.open(io.BytesIO(image_bytes))
+        logger.info(f"Image loaded: {image.size}, mode: {image.mode}")
         
-        # Create temp file for OCR (PaddleOCR requires file path)
-        temp_path = None
+        # Save to temp file
+        logger.info("Creating temporary file for OCR...")
         with NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
             image.save(temp_file.name, 'JPEG', quality=95)
             temp_path = temp_file.name
-            app.logger.info(f"Temp file created: {temp_path}")
+            logger.info(f"Temp file saved: {temp_path}")
         
         # Run OCR
-        app.logger.info("Running OCR...")
+        logger.info("Executing OCR on image...")
         result = ocr.ocr(temp_path, cls=True)
-        app.logger.info(f"OCR result: {result}")
+        logger.info(f"OCR raw result received: {len(result[0]) if result and result[0] else 0} detections")
         
         # Parse results
         recognized_text = []
         confidences = []
-        if result and result[0]:  # List of detections
-            for line in result[0]:
+        if result and result[0]:
+            for idx, line in enumerate(result[0]):
+                logger.info(f"Line {idx}: {line}")
                 if line and len(line) > 1 and line[1]:
-                    text = line[1][0]  # Text
-                    conf = line[1][1] if len(line[1]) > 1 else 0.0  # Confidence
+                    text = line[1][0] if isinstance(line[1], (list, tuple)) else str(line[1])
+                    conf = line[1][1] if isinstance(line[1], (list, tuple)) and len(line[1]) > 1 else 0.0
                     if text and text.strip():
-                        recognized_text.append(text.strip())
-                        confidences.append(conf)
+                        clean_text = text.strip()
+                        recognized_text.append(clean_text)
+                        confidences.append(float(conf))
+                        logger.info(f"Extracted: '{clean_text}' (conf: {conf:.2f})")
+        else:
+            logger.warning("No OCR results detected")
         
         full_text = ' '.join(recognized_text)
         avg_conf = sum(confidences) / max(1, len(confidences)) if confidences else 0.0
         
-        app.logger.info(f"Extracted text: {full_text}")
-        app.logger.info(f"Average confidence: {avg_conf:.2f}")
+        logger.info(f"Final output - Text: '{full_text}' | Avg Conf: {avg_conf:.2f} | Lines: {len(recognized_text)}")
         
-        # Cleanup temp file
+        # Cleanup
         if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)
-            app.logger.info("Temp file cleaned up.")
+            logger.info("Temp file deleted")
         
         return jsonify({
             'recognized_text': full_text,
-            'confidence': f'{avg_conf:.2f}'
+            'confidence': f'{avg_conf:.2f}',
+            'num_lines': len(recognized_text)
         })
         
     except Exception as e:
-        app.logger.error(f"Predict error: {str(e)}", exc_info=True)
-        # Ensure cleanup even on error
-        if 'temp_path' in locals() and temp_path and os.path.exists(temp_path):
+        logger.error(f"Detailed predict error: {str(e)}", exc_info=True)
+        if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)
-        return jsonify({'error': f'OCR processing failed: {str(e)}'}), 500
+            logger.info("Temp file deleted on error")
+        return jsonify({'error': f'Processing failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
