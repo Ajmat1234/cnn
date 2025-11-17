@@ -1,6 +1,6 @@
 Flask==3.0.3
 paddleocr==2.8.1
-numpy==2.1.1  # Latest for broader compat; 1.26.4 is outdated
-Pillow==10.4.0  # Latest
+numpy==1.26.4
+Pillow==10.1.0
 gunicorn==22.0.0
 opencv-python==4.10.0.84
