@@ -11,19 +11,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 app = Flask(__name__)
 
-# Global OCR instance
+# Global OCR instance - Initialize at module level
 ocr = None
-
-@app.before_first_request
-def initialize_ocr():
-    global ocr
-    try:
-        logger.info("Starting PaddleOCR initialization...")
-        ocr = PaddleOCR(use_angle_cls=True, lang='hi', use_gpu=False, show_log=False)
-        logger.info("PaddleOCR initialized successfully.")
-    except Exception as init_err:
-        logger.error(f"PaddleOCR initialization failed: {str(init_err)}", exc_info=True)
-        ocr = None
+try:
+    logger.info("Starting PaddleOCR initialization...")
+    ocr = PaddleOCR(use_angle_cls=True, lang='hi', use_gpu=False, show_log=False)
+    logger.info("PaddleOCR initialized successfully.")
+except Exception as init_err:
+    logger.error(f"PaddleOCR initialization failed: {str(init_err)}", exc_info=True)
+    ocr = None
 
 @app.route('/')
 def index():
