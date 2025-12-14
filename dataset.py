@@ -4,7 +4,6 @@ import lmdb
 from PIL import Image
 import six
 import torchvision.transforms as transforms
-import numpy as np
 
 class lmdbDataset(Dataset):
     def __init__(self, root, transform=None):
@@ -29,7 +28,7 @@ class lmdbDataset(Dataset):
             imgbuf = txn.get(img_key)
 
             label_key = f'label-{index:09d}'.encode()
-            label = txn.get(label_key).decode('utf-8')  # Fixed: decode utf-8
+            label = txn.get(label_key).decode('utf-8')
 
             img = Image.open(six.BytesIO(imgbuf)).convert('L')  # Grayscale
 
@@ -54,9 +53,10 @@ class alignCollate(object):
     def __init__(self, imgH=32, imgW=100):
         self.imgH = imgH
         self.imgW = imgW
+        self.transform = resizeNormalize((imgW, imgH))  # Fixed: init mein bana
 
     def __call__(self, batch):
         images, labels = zip(*batch)
-        images = [resizeNormalize((self.imgW, self.imgH))(img) for img in images]
+        images = [self.transform(img) for img in images]
         images = torch.cat([img.unsqueeze(0) for img in images], 0)
         return images, labels
