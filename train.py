@@ -17,7 +17,7 @@ parser.add_argument('--nh', type=int, default=256)
 parser.add_argument('--nepoch', type=int, default=100)
 parser.add_argument('--lr', type=float, default=0.0001)
 parser.add_argument('--alphabet', type=str, 
-                    default="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZािीुूृेैोौकखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसहक्षत्रज्ञऽ़ँंःॐ०१२३४५६७८९")
+                    default="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZअआइईउऊऋएऐओऔकखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसहा ि ी ु ू ृ े ै ो ौं ः ँ ्०१२३४५६७८९")
 parser.add_argument('--cuda', action='store_true', default=True)
 parser.add_argument('--expr_dir', default='expr', help='save checkpoints here')
 opt = parser.parse_args()
