@@ -1,5 +1,0 @@
-Flask==3.0.3
-easyocr==1.7.1
-Pillow==10.1.0
-gunicorn==22.0.0
-setuptools==70.3.0
